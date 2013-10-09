@@ -93,7 +93,6 @@ such as zmq_recv() and zmq_poll() will return when the user presses
 Ctrl-C.
 
 
-
 EXAMPLE
 -------
 .From zctx_test method
