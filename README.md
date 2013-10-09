@@ -559,7 +559,6 @@ usage is 1 I/O thread. Lets you configure this value.
 such as zmq_recv() and zmq_poll() will return when the user presses
 Ctrl-C.
 
-
 This is the class interface:
 
     //  Create new context, returns context object, replaces zmq_init
@@ -651,6 +650,10 @@ This is the class interface:
     CZMQ_EXPORT off_t
         zdir_cursize (zdir_t *self);
     
+    //  Return directory count
+    CZMQ_EXPORT size_t
+        zdir_count (zdir_t *self);
+        
     //  Returns a sorted array of zfile objects; returns a single block of memory,
     //  that you destroy by calling free(). Each entry in the array is a pointer
     //  to a zfile_t item already allocated in the zdir tree. The array ends with
@@ -677,9 +680,16 @@ This is the class interface:
 <A name="toc4-232" title="zfile - work with files" />
 #### zfile - work with files
 
-The zfile class provides methods to work with files. This class is a new
-API, deprecating the old zfile class (which still exists but is implemented
-in zsys now).
+The zfile class provides methods to work with disk files. A file object
+provides the modified date, current size, and type of the file. You can
+create a file object for a filename that does not yet exist. To read or
+write data from the file, use the input and output methods, and then
+read and write chunks. The output method lets you both read and write
+chunks, at any offset. Finally, this class provides portable symbolic
+links. If a filename ends in ".ln", the first line of text in the file
+is read, and used as the underlying file for read/write operations.
+This lets you manipulate (e.g.) copy symbolic links without copying
+the perhaps very large files they point to.
 
 This is the class interface:
 
@@ -699,33 +709,41 @@ This is the class interface:
     CZMQ_EXPORT char *
         zfile_filename (zfile_t *self, char *path);
     
-    //  Return when the file was last modified.
-    //  Updates the file statistics from disk at every call.
+    //  Refresh file properties from disk; this is not done automatically
+    //  on access methods, otherwise it is not possible to compare directory
+    //  snapshots.
+    CZMQ_EXPORT void
+        zfile_restat (zfile_t *self);
+    
+    //  Return when the file was last modified. If you want this to reflect the
+    //  current situation, call zfile_restat before checking this property.
     CZMQ_EXPORT time_t
         zfile_modified (zfile_t *self);
     
-    //  Return the last-known size of the file.
-    //  Updates the file statistics from disk at every call.
+    //  Return the last-known size of the file. If you want this to reflect the
+    //  current situation, call zfile_restat before checking this property.
     CZMQ_EXPORT off_t
         zfile_cursize (zfile_t *self);
     
-    //  Return true if the file is a directory.
-    //  Updates the file statistics from disk at every call.
+    //  Return true if the file is a directory. If you want this to reflect
+    //  any external changes, call zfile_restat before checking this property.
     CZMQ_EXPORT bool
         zfile_is_directory (zfile_t *self);
     
-    //  Return true if the file is a regular file.
-    //  Updates the file statistics from disk at every call.
+    //  Return true if the file is a regular file. If you want this to reflect
+    //  any external changes, call zfile_restat before checking this property.
     CZMQ_EXPORT bool
         zfile_is_regular (zfile_t *self);
     
-    //  Return true if the file is readable by this process
-    //  Updates the file statistics from disk at every call.
+    //  Return true if the file is readable by this process. If you want this to
+    //  reflect any external changes, call zfile_restat before checking this
+    //  property.
     CZMQ_EXPORT bool
         zfile_is_readable (zfile_t *self);
     
-    //  Return true if the file is writeable by this process
-    //  Updates the file statistics from disk at every call.
+    //  Return true if the file is writeable by this process. If you want this
+    //  to reflect any external changes, call zfile_restat before checking this
+    //  property.
     CZMQ_EXPORT bool
         zfile_is_writeable (zfile_t *self);
     
@@ -738,19 +756,24 @@ This is the class interface:
     CZMQ_EXPORT void
         zfile_remove (zfile_t *self);
     
-    //  Open file for reading, returns 0 if OK, else -1.
+    //  Open file for reading
+    //  Returns 0 if OK, -1 if not found or not accessible
     CZMQ_EXPORT int
         zfile_input (zfile_t *self);
     
-    //  Open file for writing, creating full directory path if needed
+    //  Open file for writing, creating directory if needed
+    //  File is created if necessary; chunks can be written to file at any
+    //  location. Returns 0 if OK, -1 if error.
     CZMQ_EXPORT int
         zfile_output (zfile_t *self);
     
-    //  Read chunk from file at specified position
+    //  Read chunk from file at specified position. If this was the last chunk,
+    //  sets self->eof. Returns a null chunk in case of error.
     CZMQ_EXPORT zchunk_t *
         zfile_read (zfile_t *self, size_t bytes, off_t offset);
     
     //  Write chunk to file at specified position
+    //  Return 0 if OK, else -1
     CZMQ_EXPORT int
         zfile_write (zfile_t *self, zchunk_t *chunk, off_t offset);
     
@@ -785,6 +808,8 @@ This is the class interface:
     CZMQ_EXPORT void
         zfile_mode_default (void);
 
+This class is a new API, deprecating the old zfile class (which still
+exists but is implemented in zsys now).
 
 <A name="toc4-243" title="zframe - working with single message frames" />
 #### zframe - working with single message frames
@@ -1332,6 +1357,11 @@ This is the class interface:
     CZMQ_EXPORT void
         zmutex_unlock (zmutex_t *self);
     
+    //  Try to lock mutex
+    CZMQ_EXPORT int
+        zmutex_try_lock (zmutex_t *self);
+    
+    
     //  Self test of this class
     CZMQ_EXPORT int
         zmutex_test (bool verbose);
@@ -1544,11 +1574,6 @@ This is the class interface:
     
     //  Emulation of widely-used 2.x socket options
     CZMQ_EXPORT void zsocket_set_hwm (void *zocket, int hwm);
-    
-    //  Patch in case we're on older libzmq
-    #ifndef ZMQ_STREAM
-    #define ZMQ_STREAM 11
-    #endif
     #endif
     
     #if (ZMQ_VERSION_MAJOR == 3)
@@ -1612,11 +1637,6 @@ This is the class interface:
     
     //  Emulation of widely-used 2.x socket options
     CZMQ_EXPORT void zsocket_set_hwm (void *zocket, int hwm);
-    
-    //  Patch in case we're on older libzmq
-    #ifndef ZMQ_STREAM
-    #define ZMQ_STREAM 11
-    #endif
     #endif
     
     #if (ZMQ_VERSION_MAJOR == 2)
