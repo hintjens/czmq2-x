@@ -54,4 +54,7 @@ addons/makecert
 addons/makecert.o
 addons/.libs
 addons/.deps
+src/czmq_selftest.log
+src/czmq_selftest.trs
+src/test-suite.log
 
