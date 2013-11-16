@@ -1,4 +1,4 @@
-CZMQ version 2.0.3, released on 2013/xx/xx
+CZMQ version 2.0.3, released on 2013/11/16
 ==========================================
 
 Fixed to support ZeroMQ 3.2; was causing a build error due to use of
